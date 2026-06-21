@@ -1,0 +1,1855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>BearBuddy</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --cream: #FAEEDA;
+  --honey: #FAC775;
+  --paper: #FFF8ED;
+  --border: #E8D5B0;
+  --ink: #412402;
+  --accent: #BA7517;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--cream);
+  min-height: 100vh;
+  touch-action: manipulation;
+  color: var(--ink);
+}
+
+.screen { display: none; min-height: 100vh; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ---------- PARENT UPLOAD SCREEN ---------- */
+.header {
+  padding: 14px 20px;
+  background: var(--honey);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 2px solid rgba(239,159,39,0.35);
+}
+.header h1 { font-size: 17px; font-weight: 700; }
+.header .badge {
+  margin-left: auto; font-size: 11px; background: rgba(255,255,255,0.7);
+  padding: 4px 10px; border-radius: 20px; cursor: pointer; border: 1px solid #EF9F2755;
+}
+
+.parent-body {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 28px 24px 60px; gap: 16px;
+}
+
+.card {
+  background: linear-gradient(165deg, #FFFCF7 0%, var(--paper) 100%);
+  border: 2px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 4px 0 rgba(232,213,176,0.35), 0 8px 24px rgba(65,36,2,0.06);
+}
+
+.upload-zone {
+  width: 100%; max-width: 480px; padding: 44px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  border-style: dashed; border-color: #EF9F27; cursor: pointer;
+}
+.upload-zone .icon { font-size: 42px; }
+.upload-zone .label { font-size: 15px; font-weight: 600; color: #633806; }
+.upload-zone .hint { font-size: 12px; color: #999; }
+#fileInput { display: none; }
+
+.preview-wrap { width: 100%; max-width: 480px; padding: 0; overflow: hidden; position: relative; display: none; }
+.preview-wrap img { width: 100%; display: block; max-height: 280px; object-fit: contain; }
+.rm-btn {
+  position: absolute; top: 8px; right: 8px; background: #fff; border: 2px solid var(--border);
+  border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 13px;
+}
+
+.go-btn {
+  width: 100%; max-width: 480px; padding: 14px; border-radius: 14px; border: none;
+  background: var(--accent); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 3px 0 #854F0B;
+}
+.go-btn:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
+
+.status { width: 100%; max-width: 480px; padding: 10px 14px; border-radius: 14px; font-size: 13px; display: none; gap: 8px; align-items: center; }
+.status.loading { display: flex; background: #fff8ee; color: #854F0B; border: 2px solid #EF9F27; }
+.status.ok { display: block; background: #EAF3DE; color: #3B6D11; border: 2px solid #9AC26B; }
+.status.err { display: block; background: #FCEBEB; color: #A32D2D; border: 2px solid #E8A0A0; }
+.spinner { width: 13px; height: 13px; border: 2px solid #EF9F27; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.setup-row { width: 100%; max-width: 480px; }
+.setup-row label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px; }
+.setup-row input { width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 9px; font-size: 14px; outline: none; }
+.setup-hint { font-size: 11px; color: #bbb; margin-top: 5px; }
+.setup-hint a { color: var(--accent); }
+
+/* ---------- KID READING SCREEN ---------- */
+#kidScreen { background: var(--cream); }
+.k-header {
+  padding: 12px 16px; background: var(--honey); display: flex; align-items: center; gap: 10px;
+  border-bottom: 2px solid rgba(239,159,39,0.35); flex-shrink: 0;
+}
+.k-header h2 { font-size: 14px; font-weight: 700; flex: 1; }
+.back-btn {
+  border: 2px solid #854F0B; border-radius: 10px; background: rgba(255,252,247,0.6);
+  color: #854F0B; font-size: 12px; padding: 6px 12px; cursor: pointer; font-weight: 600;
+}
+
+.k-split { display: grid; grid-template-columns: 1fr 1fr; flex: 1; overflow: hidden; }
+@media (max-width: 760px) {
+  .k-split { grid-template-columns: 1fr; grid-template-rows: 50vh 1fr; }
+  .k-left { border-right: none !important; border-bottom: 1px solid var(--border); }
+}
+
+.k-left { padding: 14px; overflow-y: auto; border-right: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: center; }
+.k-left .card { width: 100%; }
+
+/*
+  THE OVERLAY FIX — this is the part that was broken before.
+  .sheet-stage is the ONLY positioning context for word boxes.
+  It is a plain block whose size is dictated ENTIRELY by its <img>
+  child (width:100%, height:auto) — no JS-driven width/height is
+  needed for the stage to render at full size on first paint.
+  buildOverlay() only ever READS img.clientWidth/clientHeight to
+  place word boxes — it never needs to SET the stage's size, because
+  the stage naturally wraps the image exactly (line-height:0 below
+  removes the small inline-image gap that would otherwise creep in).
+*/
+.sheet-stage {
+  position: relative;
+  width: 100%;
+  line-height: 0;
+}
+.sheet-stage img {
+  width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.word-box {
+  position: absolute;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  border: 2px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+body.bb-debug .word-box {
+  border-color: rgba(220,50,50,0.6);
+  background: rgba(255,80,80,0.15);
+}
+.word-box.speaking {
+  background: rgba(239,159,39,0.55);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(186,117,23,0.2);
+}
+.word-box.translate-zh {
+  background: rgba(59,158,111,0.4);
+  border-color: #3B9E6F;
+}
+
+.k-right { padding: 20px 22px; display: flex; flex-direction: column; gap: 22px; overflow-y: auto; }
+.section-label { font-size: 10px; font-weight: 700; color: #854F0B; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+
+.now-reading { padding: 14px 16px; min-height: 50px; display: flex; align-items: center; gap: 10px; border-radius: 16px; }
+.nr-icon { font-size: 18px; }
+.nr-word { font-size: 21px; font-weight: 700; }
+.nr-hint { font-size: 11px; color: #bbb; }
+
+.mode-grid { display: flex; flex-direction: column; gap: 8px; }
+.mode-btn {
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px; cursor: pointer;
+  text-align: left; border-radius: 16px; background: transparent;
+}
+.mode-btn.selected { border-color: var(--accent) !important; background: linear-gradient(165deg, #FFFCF7 0%, #FFF8ED 100%); }
+.mode-icon { font-size: 19px; }
+.mode-name { font-size: 13px; font-weight: 700; }
+.mode-desc { font-size: 11px; color: #999; }
+
+.play-controls { display: flex; gap: 8px; }
+.play-btn {
+  flex: 1; padding: 12px 8px; border-radius: 12px; font-size: 13px; font-weight: 700;
+  border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.play-btn.primary { background: var(--ink); color: var(--honey); }
+.play-btn.stop { background: #fff; color: #633806; border: 2px solid var(--border); }
+
+.shadow-controls { display: none; flex-direction: column; gap: 8px; }
+.shadow-controls.visible { display: flex; }
+.heard-hint { font-size: 11px; color: #888; min-height: 16px; }
+.heard-hint.live { color: #4A90D9; font-weight: 600; }
+.heard-hint.missed { color: var(--accent); }
+
+.speed-row { display: flex; gap: 8px; }
+.speed-btn {
+  flex: 1; padding: 9px 6px; border-radius: 12px; border: 2px solid var(--border);
+  background: #fff; color: #888; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.speed-btn.selected { border-color: var(--accent); background: linear-gradient(165deg, #FFFCF7 0%, #FFF8ED 100%); color: var(--ink); }
+
+.mic-level-bar { height: 8px; border-radius: 6px; background: var(--border); overflow: hidden; margin-top: 4px; }
+.mic-level-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #4A90D9, #7BC97F); transition: width 0.08s linear; }
+.shadow-retry-btn {
+  margin-top: 4px; padding: 8px 10px; border-radius: 10px; border: 2px solid var(--accent);
+  background: #fff; color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+
+/* ---------- WORD-FINDING GAME (manipulation layer, kid-facing) ---------- */
+#adjustScreen { background: var(--cream); }
+.adj-header {
+  padding: 12px 16px; background: var(--honey); display: flex; align-items: center; gap: 10px;
+  border-bottom: 2px solid rgba(239,159,39,0.35); flex-shrink: 0;
+}
+.adj-header h2 { font-size: 14px; font-weight: 700; flex: 1; }
+.adj-progress { font-size: 12px; font-weight: 700; color: #854F0B; background: rgba(255,255,255,0.6); padding: 4px 10px; border-radius: 20px; }
+
+.adj-split { display: grid; grid-template-columns: 1fr 1fr; flex: 1; overflow: hidden; position: relative; }
+
+.adj-tray {
+  width: 64px; height: 36px; margin: 6px auto 0; border-radius: 8px;
+  border: 2px dashed rgba(186,117,23,0.35);
+}
+
+/*
+  adjDragLayer sits on top of BOTH columns (left=sheet, right=hint card),
+  positioned relative to .adj-split so a box can visually travel from the
+  tray (near the hint card) onto the worksheet image. While the box is
+  sitting in the tray (not yet placed on the sheet) its position is purely
+  visual; once it crosses onto the sheet image area its coordinates are
+  converted into scan-pixel space (scanDims) for the real saved value.
+*/
+.adj-drag-layer { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+.adj-drag-layer .adj-box { pointer-events: auto; }
+@media (max-width: 760px) {
+  .adj-split { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; }
+  .adj-left { border-right: none !important; border-bottom: 1px solid var(--border); }
+}
+.adj-left { padding: 14px; overflow: auto; border-right: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: center; }
+.adj-stage { position: relative; width: 100%; line-height: 0; touch-action: none; }
+.adj-stage img { width: 100%; height: auto; display: block; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+
+.adj-box {
+  position: absolute; border: 3px solid #3B9E6F; background: rgba(59,158,111,0.15);
+  border-radius: 6px; cursor: move; touch-action: none; box-sizing: border-box;
+}
+.adj-box.checking { border-color: #999; }
+.adj-box.dragging { border-color: var(--accent); background: rgba(239,159,39,0.28); z-index: 5; }
+.adj-box.correct { border-color: #3B9E6F; background: rgba(59,158,111,0.4); animation: boxYay 0.4s ease; }
+.adj-box.wrong { border-color: #D9534F; background: rgba(217,83,79,0.25); animation: boxShake 0.4s ease; }
+@keyframes boxYay { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+@keyframes boxShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+.adj-box .adj-handle {
+  position: absolute; right: -8px; bottom: -8px; width: 18px; height: 18px;
+  background: var(--accent); border: 3px solid #fff; border-radius: 50%;
+  cursor: nwse-resize; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.adj-right { padding: 22px; display: flex; flex-direction: column; gap: 18px; align-items: center; justify-content: center; text-align: center; }
+.adj-hint-card {
+  width: 100%; max-width: 320px; padding: 26px 20px; border-radius: 22px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.adj-hint-label { font-size: 11px; font-weight: 700; color: #854F0B; text-transform: uppercase; letter-spacing: 1px; }
+.adj-hint-word {
+  font-size: 24px; font-weight: 800; color: var(--ink); text-align: center;
+  border: 2px solid transparent; border-radius: 10px; background: transparent;
+  font-family: inherit; width: 100%; padding: 4px 8px; outline: none;
+  resize: none; overflow: hidden; line-height: 1.3;
+  white-space: pre-wrap; word-break: break-word;
+}
+.adj-hint-word:focus { border-color: var(--accent); background: #fff; }
+.adj-hint-edit-note { font-size: 10px; color: #bbb; margin-top: -4px; }
+.adj-hint-zh { font-size: 14px; color: #888; }
+.adj-feedback { font-size: 22px; font-weight: 800; min-height: 36px; }
+.adj-feedback.yay { color: #3B9E6F; }
+.adj-feedback.mm { color: var(--accent); }
+.adj-confirm-btn {
+  width: 100%; max-width: 320px; padding: 14px; border-radius: 14px; border: none;
+  background: var(--accent); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 3px 0 #854F0B;
+}
+.adj-confirm-btn:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+.adj-skip-btn {
+  font-size: 12px; color: #999; background: none; border: none; cursor: pointer; text-decoration: underline;
+}
+.adj-add-piece-btn {
+  width: 100%; max-width: 320px; padding: 10px; border-radius: 12px;
+  border: 2px dashed #854F0B; background: transparent; color: #854F0B;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.adj-add-piece-btn:hover { background: rgba(186,117,23,0.08); }
+.adj-piece-tag {
+  position: absolute; top: -10px; left: -10px; width: 20px; height: 20px;
+  background: var(--ink); color: var(--honey); border-radius: 50%;
+  font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.adj-bear-msg { font-size: 13px; color: #888; min-height: 18px; }
+</style>
+</head>
+<body>
+
+<div id="setupScreen" class="screen active">
+  <div class="parent-body" style="justify-content:center; flex:1;">
+    <div class="card setup-row" style="padding:28px 24px;">
+      <h1 style="font-size:22px;margin-bottom:4px;">BearBuddy</h1>
+      <p style="font-size:13px;color:#888;margin-bottom:20px;">Reading companion — setup</p>
+      <label for="apiKeyInput">Gemini API key</label>
+      <input type="password" id="apiKeyInput" placeholder="AIza..." onkeydown="if(event.key==='Enter')saveKey()"/>
+      <p class="setup-hint">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>
+      <button class="go-btn" style="margin-top:18px;" onclick="saveKey()">Let's go →</button>
+    </div>
+  </div>
+</div>
+
+<div id="parentScreen" class="screen">
+  <div class="header">
+    <h1>BearBuddy</h1>
+    <span class="badge" onclick="changeKey()">API key ✎</span>
+  </div>
+  <div class="parent-body">
+    <div class="upload-zone card" id="uploadZone">
+      <div class="icon">📷</div>
+      <div class="label">Tap or drop a homework photo</div>
+      <div class="hint">JPG or PNG — printed worksheets work best</div>
+    </div>
+    <div class="preview-wrap card" id="previewWrap">
+      <img id="previewImg" alt="Homework"/>
+      <div class="rm-btn" onclick="clearImg()">✕</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*"/>
+    <div class="status" id="statusMsg"></div>
+    <button class="go-btn" id="goBtn" disabled onclick="startScan()">Send to BearBuddy →</button>
+
+    <label class="dev-row card" for="debugBoxes">
+      <input type="checkbox" id="debugBoxes" onchange="setDebugBoxes(this.checked)"/>
+      <div><strong>Show word boxes (debug)</strong><span>Red outlines over each detected word — use this to check overlay alignment.</span></div>
+    </label>
+    <label class="dev-row card" for="devVoice">
+      <input type="checkbox" id="devVoice" onchange="setDevVoice(this.checked)"/>
+      <div><strong>Dev mode: browser voice only</strong><span>Flat robot voice but unlimited — saves Gemini quota while testing.</span></div>
+    </label>
+  </div>
+</div>
+
+<div id="adjustScreen" class="screen">
+  <div class="adj-header">
+    <h2>🐻 Help Bear find the word!</h2>
+    <span class="adj-progress" id="adjProgress">1 / 1</span>
+    <button class="back-btn" onclick="showScreen('parentScreen')">← Cancel</button>
+  </div>
+  <div class="adj-split" id="adjSplit">
+    <div class="adj-drag-layer" id="adjDragLayer"></div>
+    <div class="adj-left">
+      <div class="adj-stage" id="adjStage">
+        <img id="adjImg" alt="Homework sheet"/>
+      </div>
+    </div>
+    <div class="adj-right">
+      <div class="adj-hint-card card">
+        <div class="adj-hint-label">Find this word</div>
+        <textarea class="adj-hint-word" id="adjHintWord" rows="1" oninput="autoGrowHintWord(this)"></textarea>
+        <div class="adj-hint-zh" id="adjHintZh"></div>
+        <div class="adj-hint-edit-note">Tap to fix if Bear misread the text (e.g. remove a stray "21.")</div>
+        <div class="adj-tray" id="adjTray"></div>
+      </div>
+      <div class="adj-feedback" id="adjFeedback"></div>
+      <button class="adj-confirm-btn" id="adjConfirmBtn" onclick="checkAdjustedBox()">Confirm ✓</button>
+      <button class="adj-add-piece-btn" id="adjAddPieceBtn" onclick="addAdjPiece()" style="display:none;">+ Make second box (sentence wraps to next line)</button>
+      <div class="adj-bear-msg" id="adjBearMsg">Drag the green box onto the word, resize with the orange dot, then tap Confirm</div>
+      <button class="adj-skip-btn" onclick="skipAdjustWord()">Skip this word →</button>
+    </div>
+  </div>
+</div>
+
+<div id="kidScreen" class="screen">
+  <div class="k-header">
+    <h2>Tap any word — Bear reads it!</h2>
+    <button class="back-btn" onclick="goBack()">← Back</button>
+  </div>
+  <div class="k-split">
+    <div class="k-left">
+      <div class="sheet-stage card" id="sheetStage" style="padding:0;">
+        <img id="kidImg" alt="Homework sheet"/>
+      </div>
+    </div>
+    <div class="k-right">
+      <div>
+        <div class="section-label">Now reading</div>
+        <div class="now-reading card" id="nowReading">
+          <div class="nr-icon">👆</div>
+          <div>
+            <div class="nr-word" id="nrWord">—</div>
+            <div class="nr-hint" id="nrHint">tap a word to hear it read</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="section-label">Mode</div>
+        <div class="mode-grid">
+          <button class="mode-btn card selected" id="mode-read" onclick="setMode('read')">
+            <div class="mode-icon">👂</div>
+            <div><div class="mode-name">Read aloud</div><div class="mode-desc">Bear reads the full sentence naturally</div></div>
+          </button>
+          <button class="mode-btn card" id="mode-shadow" onclick="setMode('shadow')">
+            <div class="mode-icon">🗣️</div>
+            <div><div class="mode-name">Shadow mode</div><div class="mode-desc">Bear reads, then waits for you to repeat it</div></div>
+          </button>
+          <button class="mode-btn card" id="mode-translate" onclick="setMode('translate')">
+            <div class="mode-icon">🌏</div>
+            <div><div class="mode-name">Translation mode</div><div class="mode-desc">English, then Chinese</div></div>
+          </button>
+        </div>
+      </div>
+      <div>
+        <div class="section-label">Reading speed</div>
+        <div class="speed-row" id="speedRow">
+          <button class="speed-btn" data-speed="1" onclick="setSpeed(1)">🐢 Slow</button>
+          <button class="speed-btn selected" data-speed="2" onclick="setSpeed(2)">🚶 Normal</button>
+          <button class="speed-btn" data-speed="3" onclick="setSpeed(3)">🐇 Fast</button>
+        </div>
+      </div>
+      <div class="shadow-controls" id="shadowControls">
+        <div class="section-label">Shadow</div>
+        <div class="heard-hint" id="shadowHint">Mic ready — Bear will listen after each sentence</div>
+        <div class="mic-level-bar"><div class="mic-level-fill" id="micLevelFill"></div></div>
+        <button class="shadow-retry-btn" id="shadowRetryBtn" style="display:none;" onclick="retryShadowTurn()">🔁 Try again</button>
+      </div>
+      <div>
+        <div class="section-label">Playback</div>
+        <div class="play-controls">
+          <button class="play-btn primary" id="readAllBtn" onclick="toggleReadAll()">▶ Read all</button>
+          <button class="play-btn stop" onclick="stopAll()">■ Stop</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   BEARBUDDY — CLEAN REBUILD
+   Scope: parent upload + Read Aloud / Shadow / Translation only.
+   No pears, no wardrobe, no farm. Get the core loop correct first.
+   ============================================================ */
+
+let API_KEY = localStorage.getItem('bb_key') || '';
+let devVoice = localStorage.getItem('bb_dev_voice') === '1';
+let debugBoxes = localStorage.getItem('bb_debug_boxes') === '1';
+
+let imgBase64 = null;
+let imgMime = 'image/jpeg';
+let imgDataUrl = null;
+
+/* The single source of truth for "what size was the image we sent to Gemini,
+   and that Gemini's coordinates are relative to." This MUST equal the
+   img element's naturalWidth/naturalHeight once it loads, or every box
+   will be scaled wrong. We guarantee this by always deriving both the
+   base64 we send AND this dims object from the exact same canvas. */
+let scanDims = null; // { w, h }
+
+let sentenceData = [];   // [{ text, textZh, words: [{word, zh, x1,y1,x2,y2, el}] }]
+let currentMode = 'read';
+let currentSpeed = 1; // playback rate multiplier, also drives browser-voice .rate
+const SPEED_OPTIONS = [
+  { n: 1, ttsRate: 0.75, browserRate: 0.8, label: 'Slow' },
+  { n: 2, ttsRate: 1.0,  browserRate: 1.0, label: 'Normal' },
+  { n: 3, ttsRate: 1.3,  browserRate: 1.3, label: 'Fast' }
+];
+function speedOption() { return SPEED_OPTIONS.find(s => s.n === currentSpeed) || SPEED_OPTIONS[1]; }
+let isReading = false;
+let playbackEpoch = 0;
+let currentAudio = null;
+let micStream = null;
+
+const TTS_VOICE = 'Laomedeia';
+const TTS_MODELS = ['gemini-2.5-flash-preview-tts', 'gemini-2.5-flash-tts'];
+const VISION_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SCAN_MAX_EDGE = 1600;
+const audioCache = {};
+
+window.onload = () => {
+  setupUpload();
+  syncDebugUI();
+  syncDevVoiceUI();
+  bindOverlayResize();
+  bindAdjustResize();
+  if (API_KEY) showScreen('parentScreen');
+  else showScreen('setupScreen');
+};
+
+/* ---------------- Setup ---------------- */
+function saveKey() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if (!k) return;
+  API_KEY = k;
+  localStorage.setItem('bb_key', k);
+  showScreen('parentScreen');
+}
+function changeKey() {
+  document.getElementById('apiKeyInput').value = API_KEY;
+  showScreen('setupScreen');
+}
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function setDebugBoxes(on) {
+  debugBoxes = on;
+  localStorage.setItem('bb_debug_boxes', on ? '1' : '0');
+  syncDebugUI();
+}
+function syncDebugUI() {
+  document.getElementById('debugBoxes').checked = debugBoxes;
+  document.body.classList.toggle('bb-debug', debugBoxes);
+}
+function setDevVoice(on) {
+  devVoice = on;
+  localStorage.setItem('bb_dev_voice', on ? '1' : '0');
+  syncDevVoiceUI();
+}
+function syncDevVoiceUI() {
+  document.getElementById('devVoice').checked = devVoice;
+}
+function useBrowserVoice() { return devVoice; }
+
+/* ---------------- Upload ---------------- */
+function setupUpload() {
+  const zone = document.getElementById('uploadZone');
+  const input = document.getElementById('fileInput');
+  zone.addEventListener('click', () => input.click());
+  zone.addEventListener('dragover', e => e.preventDefault());
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) loadFile(f);
+  });
+  input.addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) loadFile(f);
+  });
+}
+
+/*
+  Normalises ANY uploaded photo into one canvas, capped at SCAN_MAX_EDGE.
+  scanDims is set from THIS canvas, and imgBase64/imgDataUrl come from
+  THIS SAME canvas. This is the guarantee that Gemini's coordinate
+  space, the dims we store, and the image actually displayed are all
+  identical — that identity is what makes the overlay math correct.
+*/
+async function loadFile(file) {
+  document.getElementById('goBtn').disabled = true;
+  setStatus('Preparing photo…', 'loading');
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    let w = bitmap.width, h = bitmap.height;
+    const scale = Math.min(1, SCAN_MAX_EDGE / Math.max(w, h));
+    w = Math.round(w * scale);
+    h = Math.round(h * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+
+    imgMime = 'image/jpeg';
+    imgDataUrl = canvas.toDataURL(imgMime, 0.92);
+    imgBase64 = imgDataUrl.split(',')[1];
+    scanDims = { w, h };
+
+    document.getElementById('previewImg').src = imgDataUrl;
+    document.getElementById('previewWrap').style.display = 'block';
+    document.getElementById('uploadZone').style.display = 'none';
+    document.getElementById('goBtn').disabled = false;
+    setStatus('Photo ready! Tap "Send to BearBuddy".', 'ok');
+  } catch (err) {
+    console.error('loadFile failed:', err);
+    setStatus('Could not load photo — try another image.', 'err');
+  }
+}
+
+function clearImg() {
+  imgBase64 = imgDataUrl = scanDims = null;
+  document.getElementById('previewWrap').style.display = 'none';
+  document.getElementById('uploadZone').style.display = 'flex';
+  document.getElementById('goBtn').disabled = true;
+  document.getElementById('fileInput').value = '';
+  setStatus('');
+}
+
+function setStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.className = 'status';
+  el.innerHTML = '';
+  if (!msg) return;
+  if (type === 'loading') {
+    el.classList.add('loading');
+    el.innerHTML = '<span class="spinner"></span><span>' + msg + '</span>';
+  } else {
+    el.classList.add(type);
+    el.textContent = msg;
+  }
+}
+
+/* ---------------- Gemini Vision: scan worksheet ---------------- */
+async function startScan() {
+  if (!imgBase64 || !scanDims) return;
+  document.getElementById('goBtn').disabled = true;
+  setStatus('Gemini is reading the worksheet…', 'loading');
+  try {
+    sentenceData = await extractWorksheet(imgBase64, imgMime, scanDims);
+    if (!sentenceData.length) throw new Error('No text found in image');
+    launchAdjustScreen();
+  } catch (err) {
+    setStatus('Error: ' + (err.message || 'scan failed'), 'err');
+  } finally {
+    document.getElementById('goBtn').disabled = false;
+  }
+}
+
+async function extractWorksheet(base64, mime, dims) {
+  const prompt = `Analyze this kindergarten homework worksheet image (exactly ${dims.w}x${dims.h} pixels).
+
+Return word bounding boxes as INTEGER PIXEL coordinates in THIS exact image:
+- x1,y1 = top-left corner of the word's ink
+- x2,y2 = bottom-right corner of the word's ink
+- Origin (0,0) is the top-left pixel of the image. x ranges 0-${dims.w}. y ranges 0-${dims.h}.
+- Boxes must tightly hug each word.
+
+Group words into natural reading sentences, top to bottom as a child would read.
+
+Return ONLY JSON, no markdown:
+{"sentences":[
+  {"text":"Complete the words with st, sk, mp.","textZh":"用 st、sk、mp 完成以下字詞。","words":[
+    {"word":"Complete","zh":"","x1":40,"y1":80,"x2":180,"y2":120}
+  ]}
+]}
+
+Rules:
+- "text" = natural spoken English sentence
+- "textZh" = full Traditional Chinese translation of the sentence
+- "zh" per word = vocabulary translation only, "" for grammar/function words
+- Ignore blank lines and pictures`;
+
+  const body = {
+    contents: [{ parts: [
+      { inline_data: { mime_type: mime, data: base64 } },
+      { text: prompt }
+    ]}],
+    generationConfig: { temperature: 0 }
+  };
+
+  let lastErr = null;
+  for (const model of VISION_MODELS) {
+    try {
+      const data = await geminiGenerate(model, body);
+      let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const end = text.lastIndexOf('}');
+      if (end !== -1) text = text.slice(0, end + 1);
+      return normalizeWorksheet(JSON.parse(text), dims);
+    } catch (err) {
+      lastErr = err;
+      console.warn('Vision model', model, 'failed:', err.message);
+    }
+  }
+  throw lastErr || new Error('All models failed');
+}
+
+function normalizeWorksheet(parsed, dims) {
+  const clamp = (v, max) => Math.max(0, Math.min(max, v));
+  return (parsed.sentences || []).map(s => ({
+    text: (s.text || '').trim(),
+    textZh: (s.textZh || '').trim(),
+    words: (s.words || []).map(w => {
+      let x1 = clamp(Number(w.x1), dims.w), y1 = clamp(Number(w.y1), dims.h);
+      let x2 = clamp(Number(w.x2), dims.w), y2 = clamp(Number(w.y2), dims.h);
+      if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
+      if (x2 < x1) [x1, x2] = [x2, x1];
+      if (y2 < y1) [y1, y2] = [y2, y1];
+      return { word: w.word, zh: (w.zh || '').trim(), x1, y1, x2, y2 };
+    }).filter(Boolean)
+  })).filter(s => s.text && s.words.length);
+}
+
+async function geminiGenerate(model, body) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data;
+}
+
+/* ---------------- WORD-FINDING GAME (manipulation layer, kid-facing) ----------------
+   Instead of showing every box at once (overwhelming, and where the old
+   misalignment was most visible), the child sees ONE item at a time:
+   - a hint card on the right shows the target text (word or full sentence)
+   - ONE draggable/resizable box appears on the worksheet, starting near
+     Gemini's rough guess
+   - child drags+resizes the box onto the matching text, taps Confirm
+   - we crop exactly that box region out of the original image and ask
+     Gemini Vision "does this say {target}?" — a real check, not a guess
+   - correct -> Yay + lock in the corrected coordinates, advance
+   - wrong   -> Mm, try again + box stays editable, same item repeats
+   - Skip    -> removes this item entirely (for junk like stray numbers)
+------------------------------------------------------------------- */
+
+let adjResizeObs = null;
+function bindAdjustResize() {
+  const stage = document.getElementById('adjStage');
+  const img = document.getElementById('adjImg');
+  if (adjResizeObs) return;
+  adjResizeObs = new ResizeObserver(() => {
+    if (document.getElementById('adjustScreen').classList.contains('active') && adjPieces.length) {
+      renderAllAdjPieces();
+    }
+  });
+  adjResizeObs.observe(stage);
+  adjResizeObs.observe(img);
+}
+
+let adjQueue = [];      // flat list of {si, kind:'word'|'sentence'}
+let adjIndex = 0;
+let adjPieces = []; // current item's box piece(s): [{scanBox, screenBox, el}]
+let adjChecking = false;
+
+function buildAdjQueue() {
+  adjQueue = [];
+  sentenceData.forEach((s, si) => {
+    const isSingleWord = s.words.length === 1 && s.text.trim().split(/\s+/).length <= 1;
+    if (isSingleWord) {
+      adjQueue.push({ si, kind: 'word' });
+    } else {
+      adjQueue.push({ si, kind: 'sentence' });
+    }
+  });
+}
+
+function sentenceUnionBox(sentence) {
+  const xs1 = sentence.words.map(w => w.x1), ys1 = sentence.words.map(w => w.y1);
+  const xs2 = sentence.words.map(w => w.x2), ys2 = sentence.words.map(w => w.y2);
+  return { x1: Math.min(...xs1), y1: Math.min(...ys1), x2: Math.max(...xs2), y2: Math.max(...ys2) };
+}
+
+function launchAdjustScreen() {
+  document.getElementById('adjImg').src = imgDataUrl;
+  showScreen('adjustScreen');
+  buildAdjQueue();
+  adjIndex = 0;
+  const img = document.getElementById('adjImg');
+  const ready = () => requestAnimationFrame(() => requestAnimationFrame(showCurrentAdjItem));
+  if (img.complete && img.naturalWidth) ready();
+  else img.onload = ready;
+}
+
+function currentAdjItem() { return adjQueue[adjIndex] || null; }
+
+/* Gemini sometimes includes the worksheet's printed item number in the OCR'd
+   text (e.g. "21. school" instead of "school"). Strip a leading "21." / "21)"
+   pattern automatically so the parent/child usually doesn't need to edit
+   anything — the editable field is there for the cases this doesn't catch. */
+function stripLeadingNumber(text) {
+  return (text || '').replace(/^\s*\d+[.)]\s*/, '').trim();
+}
+
+function autoGrowHintWord(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+function showCurrentAdjItem() {
+  const item = currentAdjItem();
+  if (!item) { confirmAdjustedBoxes(); return; }
+
+  const s = sentenceData[item.si];
+  const startBox = item.kind === 'word' ? { ...s.words[0] } : sentenceUnionBox(s);
+
+  // adjPieces holds ALL box pieces for the CURRENT item. Most items have
+  // exactly one piece. A sentence that wraps onto a second line needs two
+  // (or more) pieces — "+ Add another piece" appends to this array. Every
+  // piece gets individually cropped+verified, and together they're what
+  // gets saved as sentence.confirmedBoxes for the reading screen.
+  adjPieces = [{ scanBox: startBox, el: null, screenBox: null }];
+
+  const rawTarget = item.kind === 'word' ? s.words[0].word : s.text;
+  document.getElementById('adjProgress').textContent = (adjIndex + 1) + ' / ' + adjQueue.length;
+  const hintEl = document.getElementById('adjHintWord');
+  hintEl.value = stripLeadingNumber(rawTarget);
+  autoGrowHintWord(hintEl);
+  document.getElementById('adjHintZh').textContent = item.kind === 'word' ? (s.words[0].zh || '') : (s.textZh || '');
+  document.getElementById('adjFeedback').textContent = '';
+  document.getElementById('adjFeedback').className = 'adj-feedback';
+  document.getElementById('adjBearMsg').textContent = 'Drag the box onto the ' + (item.kind === 'word' ? 'word' : 'sentence') + ', resize with the orange dot, then tap Confirm';
+  document.getElementById('adjConfirmBtn').disabled = false;
+  document.getElementById('adjAddPieceBtn').style.display = item.kind === 'sentence' ? 'block' : 'none';
+
+  renderAllAdjPieces();
+}
+
+function addAdjPiece() {
+  if (adjChecking) return;
+  const item = currentAdjItem();
+  if (!item) return;
+  const s = sentenceData[item.si];
+  // New piece starts as a smaller box, same vertical size as the first piece,
+  // so it's an obviously-separate chunk the parent drags onto the wrapped line.
+  const base = adjPieces[0].scanBox;
+  const w = Math.min(scanDims.w * 0.3, base.x2 - base.x1);
+  adjPieces.push({
+    scanBox: { x1: base.x1, y1: base.y1, x2: base.x1 + w, y2: base.y2 },
+    el: null, screenBox: null
+  });
+  document.getElementById('adjBearMsg').textContent = 'Drag the new piece onto the rest of the sentence (e.g. the wrapped second line)';
+  renderAllAdjPieces();
+}
+
+function renderAllAdjPieces() {
+  const layer = document.getElementById('adjDragLayer');
+  const img = document.getElementById('adjImg');
+  layer.querySelectorAll('.adj-box').forEach(e => e.remove());
+
+  if (!img.naturalWidth || !img.clientWidth || !scanDims) {
+    setTimeout(renderAllAdjPieces, 80);
+    return;
+  }
+
+  adjPieces.forEach((piece, idx) => {
+    if (!piece.screenBox) {
+      // Not yet placed — start it in the tray, offset slightly per piece
+      // index so multiple pieces don't sit exactly on top of each other.
+      const splitRect = document.getElementById('adjSplit').getBoundingClientRect();
+      const trayRect = document.getElementById('adjTray').getBoundingClientRect();
+      const targetScreenW = (piece.scanBox.x2 - piece.scanBox.x1) * (img.clientWidth / scanDims.w);
+      const targetScreenH = (piece.scanBox.y2 - piece.scanBox.y1) * (img.clientHeight / scanDims.h);
+      const startW = Math.max(50, Math.min(140, targetScreenW));
+      const startH = Math.max(30, Math.min(60, targetScreenH));
+      piece.screenBox = {
+        left: (trayRect.left - splitRect.left) + (trayRect.width - startW) / 2 + idx * 14,
+        top: (trayRect.top - splitRect.top) + (trayRect.height - startH) / 2 + idx * 14,
+        width: startW,
+        height: startH
+      };
+    }
+
+    const div = document.createElement('div');
+    div.className = 'adj-box';
+    const handle = document.createElement('div');
+    handle.className = 'adj-handle';
+    div.appendChild(handle);
+    if (adjPieces.length > 1) {
+      const tag = document.createElement('div');
+      tag.className = 'adj-piece-tag';
+      tag.textContent = String(idx + 1);
+      div.appendChild(tag);
+    }
+    layer.appendChild(div);
+    applyScreenBox(div, piece.screenBox);
+    piece.el = div;
+    attachAdjBoxEvents(div, handle, piece);
+  });
+}
+
+function applyScreenBox(div, screenBox) {
+  div.style.left = screenBox.left + 'px';
+  div.style.top = screenBox.top + 'px';
+  div.style.width = screenBox.width + 'px';
+  div.style.height = screenBox.height + 'px';
+}
+
+/* Converts a box's CURRENT on-screen position (relative to .adj-split)
+   into scanDims pixel space, using the <img>'s real bounding rect — the
+   same identity (img.clientWidth/clientHeight <-> scanDims.w/h) used
+   everywhere else in this file. Only meaningful once the box is actually
+   over the image; each piece's scanBox is refreshed on every pointer-up. */
+function screenBoxToScanBox(screenBox) {
+  const img = document.getElementById('adjImg');
+  const splitRect = document.getElementById('adjSplit').getBoundingClientRect();
+  const imgRect = img.getBoundingClientRect();
+  const imgLeftInSplit = imgRect.left - splitRect.left;
+  const imgTopInSplit = imgRect.top - splitRect.top;
+  const scaleX = img.clientWidth / scanDims.w;
+  const scaleY = img.clientHeight / scanDims.h;
+
+  const relLeft = screenBox.left - imgLeftInSplit;
+  const relTop = screenBox.top - imgTopInSplit;
+
+  return {
+    x1: clampScan(relLeft / scaleX, scanDims.w),
+    y1: clampScan(relTop / scaleY, scanDims.h),
+    x2: clampScan((relLeft + screenBox.width) / scaleX, scanDims.w),
+    y2: clampScan((relTop + screenBox.height) / scaleY, scanDims.h)
+  };
+}
+
+function attachAdjBoxEvents(div, handle, piece) {
+  let mode = null;
+  let startX, startY, startScreenBox;
+
+  function onPointerDown(e, isResize) {
+    if (adjChecking) return;
+    e.stopPropagation();
+    e.preventDefault();
+    mode = isResize ? 'resize' : 'move';
+    div.classList.add('dragging');
+    const pt = e.touches ? e.touches[0] : e;
+    startX = pt.clientX;
+    startY = pt.clientY;
+    startScreenBox = { ...piece.screenBox };
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
+  }
+
+  function onPointerMove(e) {
+    if (!mode) return;
+    e.preventDefault();
+    const pt = e.touches ? e.touches[0] : e;
+    const dx = pt.clientX - startX;
+    const dy = pt.clientY - startY;
+
+    if (mode === 'move') {
+      piece.screenBox.left = startScreenBox.left + dx;
+      piece.screenBox.top = startScreenBox.top + dy;
+    } else {
+      piece.screenBox.width = Math.max(20, startScreenBox.width + dx);
+      piece.screenBox.height = Math.max(16, startScreenBox.height + dy);
+    }
+    applyScreenBox(div, piece.screenBox);
+  }
+
+  function onPointerUp() {
+    mode = null;
+    div.classList.remove('dragging');
+    window.removeEventListener('mousemove', onPointerMove);
+    window.removeEventListener('mouseup', onPointerUp);
+    window.removeEventListener('touchmove', onPointerMove);
+    window.removeEventListener('touchend', onPointerUp);
+    // Sync this piece's scanBox from wherever it currently sits on screen —
+    // this is what gets cropped/verified/saved for THIS piece specifically.
+    piece.scanBox = screenBoxToScanBox(piece.screenBox);
+  }
+
+  div.addEventListener('mousedown', e => onPointerDown(e, false));
+  div.addEventListener('touchstart', e => onPointerDown(e, false), { passive: false });
+  handle.addEventListener('mousedown', e => onPointerDown(e, true));
+  handle.addEventListener('touchstart', e => onPointerDown(e, true), { passive: false });
+}
+
+function clampScan(v, max) { return Math.max(0, Math.min(max, v)); }
+
+/* Crop the box region out of the full-res scan canvas, send to Gemini Vision
+   with a yes/no question. This is a real check, not a heuristic. */
+async function cropAdjBoxToBase64(box) {
+  const fullImg = new Image();
+  await new Promise((resolve, reject) => {
+    fullImg.onload = resolve;
+    fullImg.onerror = reject;
+    fullImg.src = imgDataUrl;
+  });
+  const padX = (box.x2 - box.x1) * 0.08;
+  const padY = (box.y2 - box.y1) * 0.15;
+  const cx1 = clampScan(box.x1 - padX, scanDims.w);
+  const cy1 = clampScan(box.y1 - padY, scanDims.h);
+  const cx2 = clampScan(box.x2 + padX, scanDims.w);
+  const cy2 = clampScan(box.y2 + padY, scanDims.h);
+  const cw = Math.max(8, cx2 - cx1), ch = Math.max(8, cy2 - cy1);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cw; canvas.height = ch;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(fullImg, cx1, cy1, cw, ch, 0, 0, cw, ch);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+  return dataUrl.split(',')[1];
+}
+
+async function verifyBoxMatchesText(box, targetText, isPartial) {
+  const cropBase64 = await cropAdjBoxToBase64(box);
+  const prompt = isPartial
+    ? `This is a small cropped photo from a handwriting worksheet. The full sentence being looked for is: "${targetText}". This crop is only ONE PIECE of that sentence (it may wrap onto another line on the page). Does this crop show text that is genuinely PART of that sentence — even just a few of its words — and not unrelated text or mostly empty space? Minor handwriting messiness is fine. Reply with ONLY one word: YES or NO.`
+    : `This is a small cropped photo from a handwriting worksheet. Does it clearly show the text "${targetText}"? Minor handwriting messiness is fine — answer based on whether this is genuinely that text, not a different word/sentence or mostly empty space. Reply with ONLY one word: YES or NO.`;
+  const body = {
+    contents: [{ parts: [
+      { inline_data: { mime_type: 'image/jpeg', data: cropBase64 } },
+      { text: prompt }
+    ]}],
+    generationConfig: { temperature: 0 }
+  };
+  for (const model of VISION_MODELS) {
+    try {
+      const data = await geminiGenerate(model, body);
+      const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toUpperCase();
+      return text.startsWith('YES');
+    } catch (err) {
+      console.warn('verify model', model, 'failed:', err.message);
+    }
+  }
+  return null; // both models failed — treat as inconclusive
+}
+
+async function checkAdjustedBox() {
+  if (adjChecking) return;
+  const item = currentAdjItem();
+  if (!item) return;
+  adjChecking = true;
+  document.getElementById('adjConfirmBtn').disabled = true;
+  document.getElementById('adjBearMsg').textContent = adjPieces.length > 1
+    ? 'Bear is checking all the pieces…'
+    : 'Bear is checking…';
+  adjPieces.forEach(p => p.el?.classList.add('checking'));
+
+  const s = sentenceData[item.si];
+  const target = document.getElementById('adjHintWord').value.trim();
+  if (!target) {
+    document.getElementById('adjBearMsg').textContent = 'Type the word/sentence in the box above first.';
+    document.getElementById('adjConfirmBtn').disabled = false;
+    adjChecking = false;
+    return;
+  }
+
+  const isPartial = adjPieces.length > 1;
+  let allCorrect = true;
+  let inconclusive = false;
+  let wrongPieceIdx = -1;
+
+  for (let i = 0; i < adjPieces.length; i++) {
+    let result = null;
+    try {
+      result = await verifyBoxMatchesText(adjPieces[i].scanBox, target, isPartial);
+    } catch (err) {
+      console.warn('Box verification failed:', err.message);
+    }
+    if (result === null) { inconclusive = true; break; }
+    if (result === false) { allCorrect = false; wrongPieceIdx = i; break; }
+  }
+
+  adjPieces.forEach(p => p.el?.classList.remove('checking'));
+
+  if (inconclusive) {
+    document.getElementById('adjBearMsg').textContent = "Bear couldn't check that one — tap Confirm again, or Skip.";
+    document.getElementById('adjConfirmBtn').disabled = false;
+  } else if (allCorrect) {
+    await onAdjCorrect(item, s, target);
+  } else {
+    onAdjWrong(wrongPieceIdx);
+  }
+  adjChecking = false;
+}
+
+async function onAdjCorrect(item, sentence, finalText) {
+  // Persist the (possibly edited) text, and save the CONFIRMED box piece(s)
+  // exactly as placed — sentence.confirmedBoxes is what the reading screen
+  // uses directly, so a multi-piece wrapped sentence stays as one tappable
+  // unit made of its real pieces, instead of being re-sliced per word.
+  const boxes = adjPieces.map(p => ({ ...p.scanBox }));
+  if (item.kind === 'word') {
+    sentence.words[0].word = finalText;
+    sentence.confirmedBoxes = boxes;
+  } else {
+    sentence.text = finalText;
+    sentence.confirmedBoxes = boxes;
+  }
+
+  adjPieces.forEach(p => p.el?.classList.add('correct'));
+  document.getElementById('adjFeedback').textContent = 'Yay!! 🎉';
+  document.getElementById('adjFeedback').className = 'adj-feedback yay';
+  document.getElementById('adjBearMsg').textContent = '';
+  await playFeedbackChime(true);
+  await delay(550);
+  adjIndex++;
+  showCurrentAdjItem();
+}
+
+function onAdjWrong(wrongPieceIdx) {
+  const target = wrongPieceIdx >= 0 ? adjPieces[wrongPieceIdx] : null;
+  (target ? [target] : adjPieces).forEach(p => p.el?.classList.add('wrong'));
+  document.getElementById('adjFeedback').textContent = 'Mm? 🤔 try again';
+  document.getElementById('adjFeedback').className = 'adj-feedback mm';
+  document.getElementById('adjBearMsg').textContent = adjPieces.length > 1
+    ? 'One of the pieces isn\'t on the right text yet — move it and tap Confirm again'
+    : 'Move the box right onto the text, then tap Confirm again';
+  document.getElementById('adjConfirmBtn').disabled = false;
+  playFeedbackChime(false);
+  setTimeout(() => document.querySelector('.adj-box')?.classList.remove('wrong'), 450);
+}
+
+function skipAdjustWord() {
+  if (adjChecking) return;
+  adjIndex++;
+  showCurrentAdjItem();
+}
+
+let adjAudioCtx = null;
+function playFeedbackChime(success) {
+  return new Promise(resolve => {
+    try {
+      if (!adjAudioCtx) adjAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = adjAudioCtx;
+      const t = ctx.currentTime;
+      const tone = (freq, start, dur, vol) => {
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(vol, start + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
+        osc.start(start); osc.stop(start + dur + 0.05);
+      };
+      if (success) {
+        tone(523.25, t, 0.16, 0.2); tone(659.25, t + 0.18, 0.2, 0.18); tone(783.99, t + 0.38, 0.24, 0.16);
+        setTimeout(resolve, 480);
+      } else {
+        tone(349.23, t, 0.16, 0.1); tone(311.13, t + 0.17, 0.2, 0.08);
+        setTimeout(resolve, 380);
+      }
+    } catch (_) { resolve(); }
+  });
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function confirmAdjustedBoxes() {
+  launchKidScreen();
+}
+
+/*
+  Why this version is correct, explicitly:
+
+  1. scanDims is set ONCE, from the exact canvas we encoded to base64
+     and sent to Gemini. There is no second path that could produce a
+     different number (no separate "original photo" fallback, no
+     re-encoding on reopen). One image, one dims object, always.
+
+  2. #sheetStage has NO padding and NO border of its own — the image
+     is its only child, and the stage is sized in JS to exactly
+     img.clientWidth x img.clientHeight. So box (0,0) inside the stage
+     IS pixel (0,0) of the displayed image, with no offset to account for.
+
+  3. buildOverlay() is only ever called after the image has actually
+     finished loading AND after two animation frames have passed
+     (so the browser has committed final layout) — see launchKidScreen().
+
+  4. Every box's position is computed fresh from scanDims and the
+     CURRENT img.clientWidth/clientHeight at call time — so resizing
+     the window/rotating the device just means calling this again,
+     never patching old numbers.
+*/
+function buildOverlay() {
+  const stage = document.getElementById('sheetStage');
+  const img = document.getElementById('kidImg');
+  stage.querySelectorAll('.word-box').forEach(e => e.remove());
+
+  if (!img.naturalWidth || !img.clientWidth || !scanDims) {
+    setTimeout(buildOverlay, 80);
+    return;
+  }
+
+  // stage sizes itself from the <img> naturally (see CSS) — we only READ
+  // img.clientWidth/clientHeight here, we never need to set the stage's size.
+  const scaleX = img.clientWidth / scanDims.w;
+  const scaleY = img.clientHeight / scanDims.h;
+  const pad = 3;
+
+  const addBox = (scanBox, onTap, label) => {
+    const left = scanBox.x1 * scaleX - pad;
+    const top = scanBox.y1 * scaleY - pad;
+    const width = (scanBox.x2 - scanBox.x1) * scaleX + pad * 2;
+    const height = (scanBox.y2 - scanBox.y1) * scaleY + pad * 2;
+    if (width < 2 || height < 2) return;
+    const div = document.createElement('div');
+    div.className = 'word-box';
+    div.style.left = left + 'px';
+    div.style.top = top + 'px';
+    div.style.width = width + 'px';
+    div.style.height = height + 'px';
+    div.title = label;
+    div.addEventListener('click', onTap);
+    stage.appendChild(div);
+    return div;
+  };
+
+  sentenceData.forEach(s => {
+    if (s.confirmedBoxes && s.confirmedBoxes.length) {
+      // Calibrated item: render exactly the box piece(s) the parent/child
+      // confirmed — a wrapped sentence may be 2+ pieces, ALL of which tap
+      // to the SAME sentence, so all els get tracked in s._els for highlighting.
+      s._els = s.confirmedBoxes.map(box => addBox(box, () => onWordTap(s.words[0], s), s.text)).filter(Boolean);
+    } else {
+      // Not yet calibrated — fall back to Gemini's original per-word boxes.
+      s.words.forEach(w => {
+        w.el = addBox(w, () => onWordTap(w, s), w.word);
+      });
+    }
+  });
+}
+
+let resizeObs = null;
+function bindOverlayResize() {
+  const stage = document.getElementById('sheetStage');
+  const img = document.getElementById('kidImg');
+  resizeObs = new ResizeObserver(() => {
+    if (document.getElementById('kidScreen').classList.contains('active') && sentenceData.length) {
+      buildOverlay();
+    }
+  });
+  resizeObs.observe(stage);
+  resizeObs.observe(img);
+}
+
+function launchKidScreen() {
+  document.getElementById('kidImg').src = imgDataUrl;
+  showScreen('kidScreen');
+
+  const img = document.getElementById('kidImg');
+  const ready = () => requestAnimationFrame(() => requestAnimationFrame(buildOverlay));
+  if (img.complete && img.naturalWidth) ready();
+  else img.onload = ready;
+
+  setNowReading(null);
+}
+
+function goBack() {
+  stopAll();
+  showScreen('parentScreen');
+}
+
+/* ---------------- Reading interaction ---------------- */
+function onWordTap(word, sentence) {
+  if (currentMode === 'shadow' && shadowBusy) {
+    // Ignore taps while Bear is reading/listening for the current sentence —
+    // previously this silently cancelled the listening turn via bumpEpoch(),
+    // which is exactly why it looked like shadow mode "didn't wait."
+    setShadowHint('Wait for this turn to finish first…', 'missed');
+    return;
+  }
+  bumpEpoch();
+  if (currentMode === 'translate') { speakTranslate(sentence); return; }
+  if (currentMode === 'shadow') { speakShadowTurn(sentence); return; }
+  speakSentence(sentence);
+}
+
+function bumpEpoch() { playbackEpoch++; return playbackEpoch; }
+function isStale(epoch) { return epoch !== playbackEpoch; }
+
+function setMode(m) {
+  if (currentMode === 'shadow' && m !== 'shadow' && shadowBusy) {
+    bumpEpoch(); // abort the in-progress listening turn before switching modes
+    shadowSkipRequested = true;
+    if (shadowRecordAbort) shadowRecordAbort();
+    stopMicLevelMeter();
+    shadowBusy = false;
+  }
+  currentMode = m;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('mode-' + m).classList.add('selected');
+  document.getElementById('shadowControls').classList.toggle('visible', m === 'shadow');
+  if (m === 'shadow') warmMic();
+  setNowReading(null);
+}
+
+function setSpeed(n) {
+  currentSpeed = n;
+  document.querySelectorAll('.speed-btn').forEach(b => {
+    b.classList.toggle('selected', parseInt(b.dataset.speed, 10) === n);
+  });
+}
+
+function setNowReading(text, isZh) {
+  const wordEl = document.getElementById('nrWord');
+  const hintEl = document.getElementById('nrHint');
+  wordEl.textContent = text || '—';
+  if (text) {
+    document.querySelector('.nr-icon').textContent = isZh ? '🌏' : '🔊';
+    hintEl.textContent = isZh ? 'in Chinese…' : 'reading…';
+  } else {
+    document.querySelector('.nr-icon').textContent = '👆';
+    const hints = { read: 'tap a sentence to hear it read', shadow: 'tap a sentence, then repeat it back', translate: 'tap a sentence — English then Chinese' };
+    hintEl.textContent = hints[currentMode];
+  }
+}
+
+function clearHighlights() {
+  document.querySelectorAll('.word-box').forEach(el => el.classList.remove('speaking', 'translate-zh'));
+}
+function highlightSentence(sentence, cls) {
+  clearHighlights();
+  const els = (sentence._els && sentence._els.length) ? sentence._els : sentence.words.map(w => w.el);
+  els.forEach(el => el && el.classList.add(cls));
+}
+
+async function speakSentence(sentence) {
+  const epoch = playbackEpoch;
+  highlightSentence(sentence, 'speaking');
+  setNowReading(sentence.text);
+  await playText(sentence.text, false, epoch);
+  if (!isStale(epoch)) { clearHighlights(); setNowReading(null); }
+}
+
+async function speakTranslate(sentence) {
+  const epoch = playbackEpoch;
+  highlightSentence(sentence, 'speaking');
+  setNowReading(sentence.text);
+  await playText(sentence.text, false, epoch);
+  if (isStale(epoch)) return;
+  await delay(350);
+  if (isStale(epoch)) return;
+  highlightSentence(sentence, 'translate-zh');
+  setNowReading(sentence.textZh, true);
+  await playText(sentence.textZh, true, epoch);
+  if (!isStale(epoch)) { clearHighlights(); setNowReading(null); }
+}
+
+/* ---------------- SHADOW MODE — real listen & check ----------------
+   Ported from an earlier working version of BearBuddy that genuinely
+   worked well, rather than relying purely on Chrome's built-in
+   SpeechRecognition transcript + a hand-written fuzzy-match heuristic
+   (which is what caused the "shouting louder doesn't help" bug — that
+   approach had no real tolerance and no actual audio-based judgement).
+
+   This version does TWO things in parallel every turn:
+   1. Web Speech API listens live as a FAST first-pass guess (free, no
+      quota) — if it's confident and matches, we accept immediately.
+   2. The actual microphone audio is recorded (MediaRecorder) and sent
+      to Gemini for transcription + a strict-but-kid-friendly judgement
+      call — this is far more tolerant of a child's pronunciation/accent
+      than Web Speech's raw transcript, and is the real authority when
+      Web Speech doesn't immediately match.
+
+   Real mic-level analysis (peak volume + total voiced time) decides
+   whether ANY speech was even present before bothering to check text —
+   this is what actually answers a volume complaint, since it's reading
+   real audio energy rather than hoping an event fires.
+------------------------------------------------------------------- */
+
+let shadowActiveSentence = null;
+let shadowBusy = false; // true while Bear is reading+listening — blocks new taps until this turn resolves
+let shadowSkipRequested = false;
+let shadowListenGen = 0;
+let shadowRecordAbort = null;
+let micAnalyser = null;
+let micLevelRaf = null;
+let feedbackAudioCtx = null;
+
+const MIC_SPEECH_LEVEL = 14;   // frequency-energy threshold counted as "speaking"
+const MIC_MIN_VOICED_MS = 400; // minimum total voiced time to count as a real attempt
+const MIC_MIN_PEAK = 18;       // minimum peak volume to count as a real attempt
+const STT_MODELS = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+
+function normalizeSpoken(text) {
+  return (text || '').toLowerCase().replace(/[^a-z']/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function cleanWord(word) {
+  return (word || '').toLowerCase().replace(/^[^a-z]+|[^a-z']+$/gi, '');
+}
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, (_, i) => { const row = new Array(n + 1); row[0] = i; return row; });
+  for (let j = 1; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+function strictWordMatch(heard, expected) {
+  const h = cleanWord(heard), e = cleanWord(expected);
+  if (!h || !e) return false;
+  if (h === e) return true;
+  if (e.length <= 3) return levenshtein(h, e) === 0;
+  return h.length >= e.length - 1 && levenshtein(h, e) <= 1;
+}
+function strictSentenceMatch(heard, expected) {
+  const expWords = normalizeSpoken(expected).split(' ').filter(Boolean);
+  if (!expWords.length) return false;
+  if (expWords.length === 1) return strictWordMatch(heard, expWords[0]);
+  const heardWords = normalizeSpoken(heard).split(' ').filter(Boolean);
+  if (heardWords.length < expWords.length) return false;
+  let hi = 0;
+  for (const ew of expWords) {
+    while (hi < heardWords.length && !strictWordMatch(heardWords[hi], ew)) hi++;
+    if (hi >= heardWords.length) return false;
+    hi++;
+  }
+  return true;
+}
+function shadowTextMatches(heard, target, isSentence) {
+  return isSentence ? strictSentenceMatch(heard, target) : strictWordMatch(heard, target);
+}
+
+function getFeedbackAudioCtx() {
+  if (!feedbackAudioCtx) feedbackAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (feedbackAudioCtx.state === 'suspended') feedbackAudioCtx.resume();
+  return feedbackAudioCtx;
+}
+
+function pickRecorderMime() {
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+  return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+function attachWebSpeechListener() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const rec = new SR();
+  let bestFinal = '', bestAny = '';
+  rec.lang = 'en-US';
+  rec.interimResults = true;
+  rec.continuous = true;
+  rec.maxAlternatives = 3;
+  rec.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = (e.results[i][0]?.transcript || '').trim();
+      if (!t) continue;
+      if (t.length > bestAny.length) bestAny = t;
+      if (e.results[i].isFinal && t.length > bestFinal.length) bestFinal = t;
+    }
+  };
+  try { rec.start(); } catch (_) { return null; }
+  return {
+    stop() { try { rec.stop(); } catch (_) {} },
+    getTranscript() { return bestFinal || bestAny; }
+  };
+}
+
+async function ensureMicAccess() {
+  if (micStream?.active) return micStream;
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone not supported');
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+  });
+  return micStream;
+}
+
+/* Records one mic clip, stopping automatically after a pause in speech
+   (or a max duration), while tracking real frequency-energy levels so we
+   can tell genuine silence/too-quiet apart from "the recogniser just
+   didn't fire" — this is what actually fixes a volume complaint. */
+async function recordMicClip(epoch, listenGen, options = {}) {
+  await ensureMicAccess();
+  const mime = pickRecorderMime();
+  if (!mime) throw new Error('Recording not supported');
+
+  const ctx = getFeedbackAudioCtx();
+  if (!micAnalyser) { micAnalyser = ctx.createAnalyser(); micAnalyser.fftSize = 512; }
+  const source = ctx.createMediaStreamSource(micStream);
+  source.connect(micAnalyser);
+  const bins = new Uint8Array(micAnalyser.frequencyBinCount);
+
+  const recorder = new MediaRecorder(micStream, { mimeType: mime });
+  const chunks = [];
+  let voicedMs = 0, peakLevel = 0, quietSince = 0;
+  let lastTick = Date.now();
+  const start = Date.now();
+  const MAX_MS = options.maxMs ?? 6000;
+  const QUIET_MS = options.quietMs ?? 900;
+
+  startMicLevelMeter();
+
+  return new Promise(resolve => {
+    let done = false;
+    const finish = result => {
+      if (done) return;
+      done = true;
+      source.disconnect();
+      shadowRecordAbort = null;
+      stopMicLevelMeter();
+      resolve(result);
+    };
+    shadowRecordAbort = () => {
+      if (recorder.state === 'recording') recorder.stop();
+      else finish({ blob: null, speechSeen: false, voicedMs: 0, peakLevel: 0 });
+    };
+
+    recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: mime });
+      const speechSeen = voicedMs >= MIC_MIN_VOICED_MS && peakLevel >= MIC_MIN_PEAK;
+      finish({ blob, speechSeen, voicedMs, peakLevel });
+    };
+    recorder.onerror = () => finish({ blob: null, speechSeen: false, voicedMs: 0, peakLevel: 0 });
+
+    try { recorder.start(200); }
+    catch (_) { finish({ blob: null, speechSeen: false, voicedMs: 0, peakLevel: 0 }); return; }
+
+    const tick = () => {
+      if (done || shadowSkipRequested || listenGen !== shadowListenGen || isStale(epoch)) {
+        if (recorder.state === 'recording') recorder.stop();
+        return;
+      }
+      const now = Date.now();
+      const dt = now - lastTick;
+      lastTick = now;
+
+      micAnalyser.getByteFrequencyData(bins);
+      let sum = 0;
+      for (let i = 0; i < bins.length; i++) sum += bins[i];
+      const level = sum / bins.length;
+      updateMicLevel(level);
+      peakLevel = Math.max(peakLevel, level);
+
+      if (level > MIC_SPEECH_LEVEL) {
+        voicedMs += dt;
+        quietSince = now;
+      } else if (voicedMs >= MIC_MIN_VOICED_MS && now - quietSince > QUIET_MS) {
+        if (recorder.state === 'recording') recorder.stop();
+        return;
+      }
+      if (now - start > MAX_MS) {
+        if (recorder.state === 'recording') recorder.stop();
+        return;
+      }
+      micLevelRaf = requestAnimationFrame(tick);
+    };
+    micLevelRaf = requestAnimationFrame(tick);
+  });
+}
+
+async function transcribeWithGemini(audioBlob, expectedText, isSentence) {
+  if (!audioBlob || audioBlob.size < 800) return { heard: '', match: false, silent: true };
+  const dataUrl = await blobToBase64(audioBlob);
+  const b64 = dataUrl.split(',')[1];
+  const mime = audioBlob.type || 'audio/webm';
+
+  const prompt = isSentence
+    ? `Listen to this audio. A kindergarten child was asked to repeat this whole sentence aloud:\n\n"${expectedText}"\n\nBe STRICT but kid-friendly:\n- If silent, only background noise, or nothing clear → {"silent":true,"heard":"","match":false}\n- If they said something different or only part of the sentence → {"silent":false,"heard":"brief transcript of what they said","match":false}\n- Set match:true ONLY if they clearly spoke the full sentence (small kid mispronunciations ok; missing words or wrong words → match:false)\n\nReturn ONLY JSON:\n{"silent":boolean,"heard":"string","match":boolean}`
+    : `Listen to this audio. A kindergarten child was asked to say the word: "${expectedText}"\n\nBe STRICT:\n- If silent, only background noise, breathing, or nothing clear → {"silent":true,"heard":"","match":false}\n- If they said a different word → {"silent":false,"heard":"what they said","match":false}\n- Set match:true ONLY if they clearly spoke "${expectedText}" (small kid mispronunciation ok, but must be that word)\n\nReturn ONLY JSON:\n{"silent":boolean,"heard":"string","match":boolean}`;
+
+  for (const model of STT_MODELS) {
+    try {
+      const data = await geminiGenerate(model, {
+        contents: [{ parts: [{ inline_data: { mime_type: mime, data: b64 } }, { text: prompt }] }],
+        generationConfig: { temperature: 0 }
+      });
+      let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const end = text.lastIndexOf('}');
+      if (end !== -1) text = text.slice(0, end + 1);
+      const parsed = JSON.parse(text);
+      const heard = (parsed.heard || '').trim();
+      const silent = parsed.silent === true || !heard;
+      const match = parsed.match === true && !silent && shadowTextMatches(heard, expectedText, isSentence);
+      console.log('[BearBuddy shadow] Gemini heard:', JSON.stringify(heard), '| match:', match, '| target:', JSON.stringify(expectedText));
+      return { heard, match, silent };
+    } catch (err) {
+      console.warn('STT', model, 'failed:', err.message);
+    }
+  }
+  return { heard: '', match: false, silent: true, error: true };
+}
+
+async function shadowCheckSpeech(expectedText, isSentence, webStt, geminiPromise) {
+  const quick = webStt?.getTranscript?.() || '';
+  if (quick && shadowTextMatches(quick, expectedText, isSentence)) {
+    return { matched: true, heard: quick, fast: true };
+  }
+  const stt = await geminiPromise;
+  const heard = stt.heard || quick || '';
+  return { matched: shadowTextMatches(heard, expectedText, isSentence), heard, fast: false };
+}
+
+async function speakShadowTurn(sentence) {
+  const epoch = playbackEpoch;
+  shadowActiveSentence = sentence;
+  shadowBusy = true;
+  highlightSentence(sentence, 'speaking');
+  setNowReading(sentence.text);
+  await playText(sentence.text, false, epoch);
+  if (isStale(epoch)) { shadowBusy = false; return; }
+  clearHighlights();
+  await runShadowListenLoop(sentence, epoch);
+  if (!isStale(epoch)) shadowBusy = false;
+}
+
+function isSentenceKind(sentence) {
+  return (sentence.text || '').trim().split(/\s+/).length > 1;
+}
+
+async function runShadowListenLoop(sentence, epoch) {
+  const expectedText = sentence.text;
+  const isSentence = isSentenceKind(sentence);
+  shadowSkipRequested = false;
+
+  try {
+    await ensureMicAccess();
+  } catch (_) {
+    setShadowHint('Microphone blocked — check browser permissions', 'missed');
+    return;
+  }
+  getFeedbackAudioCtx();
+  await delay(300);
+
+  while (!isStale(epoch) && currentMode === 'shadow' && !shadowSkipRequested) {
+    document.querySelector('.nr-icon').textContent = '🎤';
+    document.getElementById('nrHint').textContent = 'say it back!';
+    document.getElementById('shadowRetryBtn').style.display = 'none';
+    setShadowHint('Listening — say it back!', 'live');
+    highlightSentence(sentence, 'speaking');
+
+    shadowListenGen++;
+    const listenGen = shadowListenGen;
+    const webStt = attachWebSpeechListener();
+    const rec = await recordMicClip(epoch, listenGen, { maxMs: isSentence ? 8000 : 5000, quietMs: isSentence ? 900 : 700 });
+    if (webStt) { webStt.stop(); await delay(80); }
+
+    if (shadowSkipRequested || isStale(epoch)) break;
+
+    if (!rec?.blob || !rec.speechSeen) {
+      setShadowHint('No speech detected — say it out loud!', 'missed');
+      await delay(450);
+      continue; // genuinely too quiet/no speech — loop and listen again, no Gemini call wasted
+    }
+
+    setShadowHint('Got it…', 'live');
+    const geminiPromise = transcribeWithGemini(rec.blob, expectedText, isSentence);
+    const check = await shadowCheckSpeech(expectedText, isSentence, webStt, geminiPromise);
+    if (shadowSkipRequested || isStale(epoch)) break;
+
+    if (check.matched) {
+      highlightSentence(sentence, 'speaking');
+      setShadowHint('Heard: "' + check.heard + '" — perfect! 🎉', 'live');
+      await playFeedbackChime(true);
+      await delay(150);
+      clearHighlights();
+      setNowReading(null);
+      setShadowHint('Mic ready — tap another sentence', '');
+      return;
+    }
+
+    setShadowHint(check.heard ? 'Heard: "' + check.heard + '" — try again' : 'Try again', 'missed');
+    await playFeedbackChime(false);
+    if (shadowSkipRequested || isStale(epoch)) break;
+    await delay(450);
+  }
+  clearHighlights();
+}
+
+function retryShadowTurn() {
+  if (!shadowActiveSentence) return;
+  shadowBusy = true;
+  shadowSkipRequested = false;
+  const epoch = playbackEpoch;
+  runShadowListenLoop(shadowActiveSentence, epoch).then(() => {
+    if (!isStale(epoch)) shadowBusy = false;
+  });
+}
+
+function startMicLevelMeter() {
+  const bar = document.getElementById('micLevelFill');
+  if (bar) bar.style.width = '0%';
+}
+function updateMicLevel(level) {
+  const fill = document.getElementById('micLevelFill');
+  if (fill) fill.style.width = Math.min(100, (level / 55) * 100) + '%';
+}
+function stopMicLevelMeter() {
+  if (micLevelRaf) cancelAnimationFrame(micLevelRaf);
+  micLevelRaf = null;
+  updateMicLevel(0);
+}
+
+function setShadowHint(text, cls) {
+  const el = document.getElementById('shadowHint');
+  el.textContent = text;
+  el.className = 'heard-hint' + (cls ? ' ' + cls : '');
+}
+
+async function warmMic() {
+  try {
+    if (!micStream || !micStream.active) {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
+    setShadowHint('Mic ready — Bear will listen after each sentence');
+  } catch (_) {
+    setShadowHint('Mic blocked — enable it in browser settings', 'missed');
+  }
+}
+
+/* Read All — sequential through every sentence in the current mode.
+   In shadow mode this genuinely waits for a correct repetition on each
+   sentence before moving to the next — that IS what "read all" should mean
+   for shadow mode, not a passive read-through. */
+async function toggleReadAll() {
+  if (isReading) { stopAll(); return; }
+  isReading = true;
+  document.getElementById('readAllBtn').textContent = '■ Stop reading';
+  const epoch = bumpEpoch();
+  for (const sentence of sentenceData) {
+    if (isStale(epoch) || !isReading) break;
+    if (currentMode === 'translate') {
+      await speakTranslate(sentence);
+    } else if (currentMode === 'shadow') {
+      shadowBusy = true;
+      shadowActiveSentence = sentence;
+      highlightSentence(sentence, 'speaking');
+      setNowReading(sentence.text);
+      await playText(sentence.text, false, epoch);
+      if (isStale(epoch)) { shadowBusy = false; break; }
+      clearHighlights();
+      await runShadowListenLoop(sentence, epoch);
+      shadowBusy = false;
+    } else {
+      await speakSentence(sentence);
+    }
+    if (isStale(epoch) || !isReading) break;
+    await delay(250);
+  }
+  isReading = false;
+  document.getElementById('readAllBtn').textContent = '▶ Read all';
+}
+
+function stopAll() {
+  bumpEpoch();
+  isReading = false;
+  shadowBusy = false;
+  shadowSkipRequested = true;
+  if (shadowRecordAbort) shadowRecordAbort();
+  stopMicLevelMeter();
+  document.getElementById('shadowRetryBtn').style.display = 'none';
+  document.getElementById('readAllBtn').textContent = '▶ Read all';
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  clearHighlights();
+  setNowReading(null);
+}
+
+/* ---------------- TTS ---------------- */
+function cacheKey(text, isZh) { return (isZh ? 'zh::' : 'en::') + text; }
+
+async function playText(text, isZh, epoch) {
+  if (!text) return;
+  if (useBrowserVoice()) return playBrowserVoice(text, isZh, epoch);
+
+  const key = cacheKey(text, isZh);
+  try {
+    let blob = audioCache[key];
+    if (!blob) {
+      blob = await fetchGeminiTts(text, isZh);
+      audioCache[key] = blob;
+    }
+    if (isStale(epoch)) return;
+    await playBlob(blob, epoch);
+  } catch (err) {
+    console.warn('Gemini TTS failed, falling back to browser voice:', err.message);
+    if (!isStale(epoch)) await playBrowserVoice(text, isZh, epoch);
+  }
+}
+
+async function fetchGeminiTts(text, isZh) {
+  const prompt = isZh
+    ? `Say cheerfully in Traditional Chinese (繁體中文), like an excited kindergarten teacher: ${text}`
+    : `Say cheerfully, like an excited kindergarten teacher: ${text}`;
+
+  let lastErr = null;
+  for (const model of TTS_MODELS) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: TTS_VOICE } } }
+            }
+          })
+        }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      const part = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.data || p.inline_data?.data);
+      const b64 = part?.inlineData?.data || part?.inline_data?.data;
+      if (!b64) throw new Error('No audio returned');
+      return pcmToWav(base64ToBytes(b64), 24000, 1, 16);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('TTS failed');
+}
+
+function playBlob(blob, epoch) {
+  return new Promise(resolve => {
+    if (currentAudio) currentAudio.pause();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.playbackRate = speedOption().ttsRate;
+    currentAudio = audio;
+    audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+    audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+    audio.play().catch(() => resolve());
+  });
+}
+
+let voicesCache = [];
+function pickVoice(lang) {
+  const voices = voicesCache.length ? voicesCache : speechSynthesis.getVoices();
+  return voices.find(v => v.lang.startsWith(lang)) || voices[0] || null;
+}
+function playBrowserVoice(text, isZh, epoch) {
+  return new Promise(resolve => {
+    if (!window.speechSynthesis) { resolve(); return; }
+    speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = isZh ? 'zh-TW' : 'en-US';
+    utt.rate = speedOption().browserRate;
+    const v = pickVoice(utt.lang);
+    if (v) utt.voice = v;
+    utt.onend = resolve;
+    utt.onerror = resolve;
+    speechSynthesis.speak(utt);
+  });
+}
+if (window.speechSynthesis) {
+  speechSynthesis.addEventListener('voiceschanged', () => { voicesCache = speechSynthesis.getVoices(); });
+}
+
+function base64ToBytes(b64) {
+  const bin = atob(b64), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function pcmToWav(pcm, sr, ch, bd) {
+  const dl = pcm.length, buf = new ArrayBuffer(44 + dl), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4,36+dl,true); w(8,'WAVE'); w(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,ch,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*ch*(bd/8),true);
+  v.setUint16(32,ch*(bd/8),true); v.setUint16(34,bd,true);
+  w(36,'data'); v.setUint32(40,dl,true);
+  new Uint8Array(buf, 44).set(pcm);
+  return new Blob([buf], { type:'audio/wav' });
+}
+</script>
+</body>
+</html>
